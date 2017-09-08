@@ -1,5 +1,7 @@
 #lang racket
 
+;; This is a datalog-without-negation interpreter in minikanren.
+
 (require "fast-mk/mk.rkt")
 
  ;; Some macros that make minikanren more concise and logic-programming-y.

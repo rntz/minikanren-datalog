@@ -1,5 +1,8 @@
 #lang racket
 
+;; This is a datalog-without-negation interpreter in Racket (no minikanren
+;; involved).
+
 ;; a rule is:
 ;;
 ;;  ((PRED ARG0 ... ARGN)   ;; <- the conclusion

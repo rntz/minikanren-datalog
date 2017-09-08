@@ -1,5 +1,9 @@
 #lang racket
 
+;; This is an abandoned datalog implementation in minikanren.
+;;
+;; It is buggy; I didn't spend enough time to figure out what was wrong.
+
 (require "fast-mk/mk.rkt")
 
 (define (appendo l s ls)
