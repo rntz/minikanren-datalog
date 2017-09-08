@@ -2,10 +2,6 @@
 
 (require "fast-mk/mk.rkt")
 
-(define-syntax-rule
-  (defrel (name params ...) body ...)
-  (define (name params ...) (fresh () body ...)))
-
 (define (appendo l s ls)
   (conde
    [(== '() l) (== s ls)]
@@ -23,8 +19,8 @@
 ;;
 ;; arguments are:
 ;;
-;;    x         ;; variables, which are symbols
-;;  | (quote _) ;; atoms, which are quoted things
+;;    (quote x) ;; variables, which are quoted symbols
+;;  | x         ;; atoms, which are symbols
 
 (define (atomo x) (conde [(symbolo x) (=/= x 'quote)] [(== x '())]))
 (define (varo x) (fresh (y) (== x `(quote ,y))))
@@ -180,23 +176,23 @@
                            (loop F+ results))]))])
         (loop DB results)))]))
 
-(define (fireo DB rule results)
+(define (fire DB rule results)
   (fresh (conc prems substs)
     (== rule (cons conc prems))
     (queryo DB conc prems '() results)))
 
-(define (fire-allo DB rules learned-facts)
+(define (fire-all DB rules learned-facts)
   (conde
    [(== rules '()) (emptyo learned-facts)]
    [(fresh (rule rest-rules rule-results rest-rules-results)
       (== rules (cons rule rest-rules))
-      (fireo DB rule rule-results)
-      (fire-allo DB rest-rules rest-rules-results)
+      (fire DB rule rule-results)
+      (fire-all DB rest-rules rest-rules-results)
       (uniono learned-facts rule-results rest-rules-results))]))
 
 (define (stepo DB rules DB^)
   (fresh (learned)
-   (fire-allo DB rules learned)
+   (fire-all DB rules learned)
    (uniono DB^ DB learned)))
 
 (define (step*o DB rules final-DB)
