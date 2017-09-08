@@ -98,9 +98,10 @@
     (unifies M1 G1 S1 S2)])
 
 ;; (not-unifies term ground S)
-(define-rules not-unifies (M G S S1 M0 M1 G0 G1)
+(define-rules not-unifies (M G S S1 M0 M1 G0 G1 Ma Mb)
   [(M G S) (atomo M) (=/= M G)]
-  [((cons M0 M1) G) (atomo G)]
+  ;; note the extremely important check that Ma =/= 'quote.
+  [((cons Ma Mb) G S) (=/= Ma 'quote) (atomo G)]
   [(M G S) (varo M) (assoco M G0 S) (=/= G G0)]
   [((cons M0 M1) (cons G0 G1) S)
    (conde
