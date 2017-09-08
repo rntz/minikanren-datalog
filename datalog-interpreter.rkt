@@ -43,6 +43,13 @@
   ;; assumes key not yet bound in subst
   (cons (cons key value) subst))
 
+;; tries to assign key to value in subst;
+;; returns #f if key is already bound to a different value
+(define (assign subst key value)
+  (lookup subst key
+          (lambda () (cons (cons key value) subst))
+          (lambda (old-value) (and (eq? value old-value) subst))))
+
 (define (substitute term subst)
   (match term
     ['() '()]
@@ -53,38 +60,58 @@
 
 ;; returns #f on unification failure.
 (define (unify subst args grounds)
-  ;; (pr "unifying: ~a ~a ~a" subst args grounds)
+  (pr "unifying: ~a ~a ~a" subst args grounds)
   (cond
     [(eq? args grounds) subst]
-    [(var? args)
-     (lookup subst args
-             ;; "failure", variable not yet bound
-             (lambda () (update subst args grounds))
-             ;; "success", variable already substituted for
-             (lambda (v) (and (eq? v grounds) subst)))]
+    [(var? args) (assign subst args grounds)]
     [(and (cons? args) (cons? grounds))
-     (unify (unify subst (car args) (car grounds))
-            (cdr args) (cdr grounds))]
+     (match (unify subst (car args) (car grounds))
+       [#f #f]
+       [x (unify x (cdr args) (cdr grounds))])]
     [#t #f]))
 
-(define (solve premises facts [subst empty-subst])
+(define (query^ conc premises facts [subst empty-subst])
   (match premises
-    ['() (singleton subst)]
-    [(cons `(,pred . ,args) premises)
-     ;; try to find (pred . args) in facts
+    ['() (singleton (substitute conc subst))]
+    [(cons (cons pred args) premises)
      (unions
+      ;; try to find (pred . args) in facts
       (for/list ([fact facts] #:when (eq? (car fact) pred))
         (define new-subst (unify subst args (cdr fact)))
         (if new-subst
-          (solve premises facts new-subst)
-          empty)))]))
+            (query^ conc premises facts new-subst)
+            empty)))]))
+
+;; (define (query premises facts [subst empty-subst])
+;;   (match premises
+;;     ['() (singleton subst)]
+;;     [(cons `(,pred . ,args) premises)
+;;      (unions
+;;       ;; try to find (pred . args) in facts
+;;       (for/list ([fact facts] #:when (eq? (car fact) pred))
+;;         (define new-subst (unify subst args (cdr fact)))
+;;         (if new-subst
+;;           (query premises facts new-subst)
+;;           empty)))]))
 
 (define (fire rule facts)
   ;; Try to solve the premises.
   (define conclusion (car rule))
   (define premises (cdr rule))
+  ;; the new version
+  (query^ conclusion premises facts)
+  #;
   (unions
-   (for/list ([s (solve premises facts)])
+   ;; the explicit version
+   (let loop ([substs (query premises facts)]
+              [acc '()])
+     (match substs
+       ['() acc]
+       [(cons s substs)
+        (loop substs (cons (singleton (substitute conclusion s)) acc))]))
+   ;; the nice version
+   #;
+   (for/list ([s (query premises facts)])
      (singleton (substitute conclusion s)))))
 
 (define (step rules facts)
@@ -96,7 +123,7 @@
   (let loop ([facts facts] [n 0])
     (and limit (< limit n) (error "over limit"))
     (define new-facts (step rules facts))
-    ;; (pr "facts: ~v\nnew-facts: ~v\n" facts new-facts)
+    (pr "facts: ~v\nnew-facts: ~v\n" facts new-facts)
     ;; I'm not sure whether equal? is ok here, or whether we need set=?.
     (if (set=? facts new-facts)
         ;; fixed point reached!
@@ -112,5 +139,16 @@
    '(loves bob john)))
 
 (define some-rules
-  (setof
+  (list
    '((loves X X) (person X))))
+
+
+;;; transitive closure on graphs
+(define graph-facts
+  (setof
+   '(edge A B) '(edge B A)))
+
+(define graph-rules
+  (list
+   '((path X Y) (edge X Y))
+   '((path X Z) (path X Y) (path Y Z))))
