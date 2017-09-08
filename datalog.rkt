@@ -101,8 +101,9 @@
    (=/= Key k)
    (not-assoco Key rest)])
 
-
-;; Let's get down to business. A term is:
+ ;; Datatype definitions.
+
+;; A term is:
 ;;
 ;;   (quote x)   ;; a variable, which are quoted symbols
 ;; | x           ;; an atom, which is an unquoted symbol
@@ -133,8 +134,7 @@
    [(symbolo x) #;(=/= x 'quote)]
    [(== x '())]))
 
-
-;; Substitutions as association lists.
+ ;; Substitutions as association lists.
 
 ;; "Setting K to V in S produces S-out."
 ;; Fails if K is already bound to some V2 =/= V.
