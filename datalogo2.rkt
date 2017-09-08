@@ -86,6 +86,7 @@
   [(S X X) (varo X) (not-assoco X S)]
   [(S X R) (varo X) (assoco X R S)]
   [(S (cons X0 X1) (cons R0 R1))
+    ;; do we need that X0 isn't quote here?
     (substo S X0 R0)
     (substo S X1 R1)])
 
@@ -98,11 +99,11 @@
     (unifies M1 G1 S1 S2)])
 
 ;; (not-unifies term ground S)
-(define-rules not-unifies (M G S S1 M0 M1 G0 G1 Ma Mb)
+(define-rules not-unifies (M G S S1 M0 M1 G0 G1)
   [(M G S) (atomo M) (=/= M G)]
-  ;; note the extremely important check that Ma =/= 'quote.
-  [((cons Ma Mb) G S) (=/= Ma 'quote) (atomo G)]
   [(M G S) (varo M) (assoco M G0 S) (=/= G G0)]
+  ;; note the extremely important check that M0 =/= 'quote.
+  [((cons M0 M1) G S) (=/= M0 'quote) (atomo G)]
   [((cons M0 M1) (cons G0 G1) S)
    (conde
      [(not-unifies M0 G0 S)]
