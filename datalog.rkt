@@ -1,118 +1,27 @@
 #lang racket
 
 ;; This is a datalog-without-negation interpreter in minikanren.
+;;
+;; Even if you already know minikanren, you'll want to read macros.rkt in order
+;; to understand this file. lists.rkt defines some helper relations on lists.
 
 (require "fast-mk/mk.rkt")
-
- ;; Some macros that make minikanren more concise and logic-programming-y.
-
-;; With fresh variables (fresh-var ...), matches the tuple (examinee ...)
-;; against the tuple-patterns (pat ...) ... in turn, executing the corresponding
-;; (body ...) on a match.
-(define-syntax-rule
-  (matche* (examinee ...) (fresh-var ...)
-    [(pat ...) body ...] ...)
-  (fresh (fresh-var ...)
-    (conde
-      [(== examinee pat) ... body ...] ...)))
-
-;; matche for a single examinee.
-(define-syntax-rule (matche examinee (fresh-var ...) [pat body ...] ...)
-  (matche* (examinee) (fresh-var ...) [(pat) body ...] ...))
-
-;; Constructs a relation on (arg ...) by immediately matching against (arg ...).
-(define-syntax-rule
-  (rules (arg ...) (fresh-var ...)
-    [(pat ...) body ...] ...)
-  (lambda (arg ...)
-    (matche* (arg ...) (fresh-var ...)
-      [(pat ...) body ...] ...)))
-
-;; Defines a relation (name arg ...) by immediately matching against (arg ...).
-(define-syntax-rule
-  (define-rules (name arg ...) (fresh-var ...)
-    [(pat ...) body ...] ...)
-  (define name
-    (rules (arg ...) (fresh-var ...)
-      [(pat ...) body ...] ...)))
-
- ;; An example demonstrating the above:
-;; "Appending the lists X and Y yields X++Y."
-(define-rules (appendo X Y X++Y) (x xs rest)
-  [('() Y Y)]
-  [((cons x xs) Y (cons x rest)) (appendo xs Y rest)])
-
-;; this is equivalent to:
-(define (appendo-2 X Y X++Y)
-  (matche* (X Y X++Y) (x xs rest)
-    [('() Y Y)]
-    [((cons x xs) Y (cons x rest)) (appendo-2 xs Y rest)]))
-
-;; which is equivalent to:
-(define (appendo-3 X Y X++Y)
-  (fresh (x xs rest)
-    (conde
-      [(== X '()) (== Y Y) (== X++Y Y)]
-      [(== X (cons x xs)) (== Y Y) (== X++Y (cons x rest)) (appendo-3 xs Y rest)])))
-
-;; which after removing redundant uses of (== Y Y) is:
-(define (appendo-4 X Y X++Y)
-  (fresh (x xs rest)
-    (conde
-      [(== X '()) (== Y X++Y)]
-      [(== X (cons x xs)) (== X++Y (cons x rest)) (appendo-4 xs Y rest)])))
-
-;; which, modulo placement of `fresh`, is identical to what you'd write by hand:
-(define (appendo-5 X Y X++Y)
-  (conde
-    [(== X '()) (== Y X++Y)]
-    [(fresh (x xs rest)
-       (== X (cons x xs)) (== X++Y (cons x rest)) (appendo-5 xs Y rest))]))
-
- ;; Some more examples:
-;; "X is an element of the list L."
-(define-rules (membero X L) (xs y ys)
-  [(X (cons X xs))]
-  [(X (cons y ys)) (=/= X y) (membero X ys)])
-
-;; "X is not an element of the list L."
-(define-rules (not-membero X L) (xs y ys)
-  [(X '())]
-  [(X (cons y ys)) (=/= X y) (not-membero X ys)])
-
-;; "X is an element of L; removing the first occurrence of X gives L-without-X."
-(define-rules (rembero X L L-without-X) (xs y ys)
-  [(X (cons X xs) xs)]
-  [(X (cons y xs) (cons y ys))
-    (=/= X y)
-    (rembero X xs ys)])
-
-;; "Alist associates Key with Val."
-(define-rules (assoco Key Val Alist) (k v rest)
-  [(Key Val `((,Key ,Val) ,@rest))]
-  [(Key Val `((,k ,v) ,@rest))
-    (=/= Key k)
-    (assoco Key Val rest)])
-
-;; "Alist has no association for Key."
-(define-rules (not-assoco Key Alist) (k v rest)
-  [(Key '())]
-  [(Key `((,k ,v) ,@rest))
-   (=/= Key k)
-   (not-assoco Key rest)])
+(require "macros.rkt" "lists.rkt")
 
  ;; Datatype definitions.
 
 ;; A term is:
 ;;
-;;   (quote x)   ;; a variable, which are quoted symbols
-;; | x           ;; an atom, which is an unquoted symbol
-;; | (M0 . M1)   ;; a pair of terms
+;;   (quote x)   ;; a variable, which is a quoted symbol
+;; | x           ;; a constant, which is an unquoted symbol
+;; | (M0 . M1)   ;; a pair of terms, the first of which is not 'quote
 ;; | ()          ;; an empty list
 ;;
-;; A ground term is one which contains no variables.
+;; An atom is a constant or ().
 ;;
-;; An argument is a term which is either a variable or an atom.
+;; A term is ground iff it contains no variables.
+;;
+;; An argument is a variable or a constant.
 ;;
 ;; A fact is a term of the form (pred ARG...) where pred is a symbol and
 ;; ARG... is a list of arguments.
@@ -126,13 +35,27 @@
 ;;
 ;; A database is a set (list without duplicates) of ground facts.
 
-(define-rules (varo X) (_) [(`(quote ,_))])
-(define (atomo x)
-  (conde
-   ;; is (=/= x 'quote) important, given that we have that constraint in
-   ;; not-unifies and substo?
-   [(symbolo x) #;(=/= x 'quote)]
-   [(== x '())]))
+(define-rules (var?o X) (_) [(`(quote ,_))])
+(define const?o symbolo)
+(define (arg?o M) (conde [(var?o M)] [(const?o M)]))
+(define (atom?o x) (conde [(const?o x)] [(== x '())]))
+
+(define (term?o M)
+  (conde [(arg?o M)]
+         [(matche M (m0 m1)
+            ['()]
+            [(cons m0 m1) (=/= m0 'quote) (term?o m0) (term?o m1)])]))
+
+(define-rules (fact?o F) (pred args)
+  [((cons pred args)) (symbolo pred) (=/= pred 'quote) (forall args arg?o)])
+
+(define (query?o Q) (forall Q fact?o))
+
+;; TODO: groundo.
+
+;; TODO: encode datalog's constraints on rules.
+(define (rule?o R) (forall R fact?o))
+(define (rules?o Rs) (forall Rs rule?o))
 
  ;; Substitutions as association lists.
 
@@ -144,29 +67,33 @@
 
 ;; "Applying the substitution S to the term X produces the term R."
 (define-rules (substo S X R) (x0 x1 r0 r1)
-  [(S X X) (atomo X)]
-  [(S X X) (varo X) (not-assoco X S)]
-  [(S X R) (varo X) (assoco X R S)]
+  [(S X X) (atom?o X)]
+  [(S X X) (var?o X) (not-assoco X S)]
+  [(S X R) (var?o X) (assoco X R S)]
   [(S (cons x0 x1) (cons r0 r1))
     (=/= x0 'quote)
     (substo S x0 r0)
     (substo S x1 r1)])
 
+;; There's some appropriate notion of "refutable relation" that would let me
+;; combine `unifies` and `not-unifies` into one thing, but I can't figure out
+;; exactly what it is.
+
 ;; "Under substitution S, term M unifies with ground term G, producing
 ;; substitution S-out."
 (define-rules (unifies M G S S-out) (m0 m1 g0 g1 s^)
-  [(M M S S) (atomo M)]
-  [(M G S S-out) (varo M) (assigno M G S S-out)]
+  [(M M S S) (atom?o M)]
+  [(M G S S-out) (var?o M) (assigno M G S S-out)]
   [((cons m0 m1) (cons g0 g1) S S-out)
    (unifies m0 g0 S s^)
    (unifies m1 g1 s^ S-out)])
 
 ;; "Term M cannot unify with ground term G under substitution S."
 (define-rules (not-unifies M G S) (m0 m1 g0 g1 s^)
-  [(M G S) (atomo M) (=/= M G)]
-  [(M G S) (varo M) (assoco M g0 S) (=/= G g0)]
+  [(M G S) (atom?o M) (=/= M G)]
+  [(M G S) (var?o M) (assoco M g0 S) (=/= G g0)]
   ;; note the extremely important check that m0 =/= 'quote.
-  [((cons m0 m1) G S) (=/= m0 'quote) (atomo G)]
+  [((cons m0 m1) G S) (=/= m0 'quote) (atom?o G)]
   [((cons m0 m1) (cons g0 g1) S)
    (conde
      [(not-unifies m0 g0 S)]
@@ -187,6 +114,7 @@
 ;; "Applying `rule` derives the ground fact `fact` from the facts in `DB`."
 (define-rules (apply-rule rule DB fact) (conc prems S)
   [((cons conc prems) DB fact)
+   (fact?o conc) (query?o prems) ;; well-formedness; helps with rule synthesis.
    ;; satisfy prems with substitution S.
    (query DB prems S)
    ;; then apply S to the conclusion.
@@ -225,13 +153,6 @@
   [(S term (cons F Fs) solns)
     (not-unifies term F S)
     (query-all S term Fs solns)])
-
-;; "L is a list all of whose members satisfy p."
-;; `p` is not a logic variable but a unary relation parameter.
-(define (forall L p)
-  (matche L (x xs)
-    ['()]
-    [(cons x xs) (p x) (forall xs p)]))
 
 ;; "There is no solution to `query` extending `S` which, when substituted into
 ;; `conc`, yields a result that isn't already in `DB`."
