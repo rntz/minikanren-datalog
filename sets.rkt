@@ -30,11 +30,14 @@
    (remove-allo x xs xs^)
    (nubo xs^ ys)])
 
-;; a list has no duplicates if its nub is itself.
+;; a list has no duplicates iff its nub is itself.
 (define (nodupso X) (nubo X X))
 
 ;; subseto and set== work perfectly well (in either direction) if you care about
 ;; *all* lists representing a set. but if you care about only duplicate-free
 ;; lists, I'm not sure...
 (define (subseto A B) (forallo A (lambda (x) (membero x B))))
-(define (set== A B) (fresh () (subseto A B) (subseto B A)))
+(define (set== A B) (fresh (X Y) (nubo A X) (nubo B Y) (permuteo X Y)))
+
+;; ;; a different definition. probably slower? TODO: test.
+;; (define (set==2 A B) (fresh () (subseto A B) (subseto B A)))
