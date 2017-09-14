@@ -47,28 +47,22 @@
             [(cons m0 m1) (=/= m0 'quote) (term?o m0) (term?o m1)])]))
 
 (define-rules (fact?o F) (pred args)
-  [((cons pred args)) (symbolo pred) (=/= pred 'quote) (forall args arg?o)])
+  [((cons pred args)) (symbolo pred) (=/= pred 'quote) (forallo args arg?o)])
 
-(define (query?o Q) (forall Q fact?o))
+(define (query?o Q) (forallo Q fact?o))
 
 ;; TODO: groundo.
 
 ;; TODO: encode datalog's constraints on rules.
-(define (rule?o R) (forall R fact?o))
-(define (rules?o Rs) (forall Rs rule?o))
+(define (rule?o R) (forallo R fact?o))
+(define (rules?o Rs) (forallo Rs rule?o))
 
  ;; Substitutions as association lists.
-
-;; "Setting K to V in S produces S-out."
-;; Fails if K is already bound to some V2 =/= V.
-(define-rules (assigno K V S S-out) ()
-  [(K V S S) (assoco K V S)]
-  [(K V S `((,K ,V) ,@S)) (not-assoco K S)])
 
 ;; "Applying the substitution S to the term X produces the term R."
 (define-rules (substo S X R) (x0 x1 r0 r1)
   [(S X X) (atom?o X)]
-  [(S X X) (var?o X) (not-assoco X S)]
+  [(S X X) (var?o X) (¬assoco X S)]
   [(S X R) (var?o X) (assoco X R S)]
   [(S (cons x0 x1) (cons r0 r1))
     (=/= x0 'quote)
@@ -76,7 +70,7 @@
     (substo S x1 r1)])
 
 ;; There's some appropriate notion of "refutable relation" that would let me
-;; combine `unifies` and `not-unifies` into one thing, but I can't figure out
+;; combine `unifies` and `¬unifies` into one thing, but I can't figure out
 ;; exactly what it is.
 
 ;; "Under substitution S, term M unifies with ground term G, producing
@@ -89,15 +83,15 @@
    (unifies m1 g1 s^ S-out)])
 
 ;; "Term M cannot unify with ground term G under substitution S."
-(define-rules (not-unifies M G S) (m0 m1 g0 g1 s^)
+(define-rules (¬unifies M G S) (m0 m1 g0 g1 s^)
   [(M G S) (atom?o M) (=/= M G)]
   [(M G S) (var?o M) (assoco M g0 S) (=/= G g0)]
   ;; note the extremely important check that m0 =/= 'quote.
   [((cons m0 m1) G S) (=/= m0 'quote) (atom?o G)]
   [((cons m0 m1) (cons g0 g1) S)
    (conde
-     [(not-unifies m0 g0 S)]
-     [(unifies m0 g0 S s^) (not-unifies m1 g1 s^)])])
+     [(¬unifies m0 g0 S)]
+     [(unifies m0 g0 S s^) (¬unifies m1 g1 s^)])])
 
  ;; Stepping datalog programs / nondeterministically deriving new facts
 
@@ -126,7 +120,7 @@
    (membero rule rules)
    (apply-rule rule DB fact)
    ;; the fact must be new, to avoid duplicating facts.
-   (not-membero fact DB)])
+   (¬membero fact DB)])
 
 ;; "Applying zero or more of `rules` to DB yields the larger database DB^."
 (define-rules (step* rules DB DB^) (DB1)
@@ -151,7 +145,7 @@
     (query-all S term Fs S^s)]
   ;; If the fact doesn't unify, we ignore it and proceed recursively.
   [(S term (cons F Fs) solns)
-    (not-unifies term F S)
+    (¬unifies term F S)
     (query-all S term Fs solns)])
 
 ;; "There is no solution to `query` extending `S` which, when substituted into
@@ -164,14 +158,15 @@
     (membero result DB)]
   [(DB S conc (cons term query-rest))
     (query-all S term DB substs)
-    (forall substs (lambda (s) (nothing-new DB s conc query-rest)))])
+    (forallo substs (lambda (s) (nothing-new DB s conc query-rest)))])
 
 ;; "`rule` cannot deduce anything new in `DB`."
 (define-rules (idempotent rule DB) (conc prems)
   [((cons conc prems) DB) (nothing-new DB '() conc prems)])
 
 ;; "`DB` is stable under the rules in `rules`."
-(define (stable rules DB) (forall rules (lambda (rule) (idempotent rule DB))))
+(define (stable rules DB)
+  (forallo rules (lambda (rule) (idempotent rule DB))))
 
 ;; "Applying all rules in `rules` repeatedly to `init-DB` until it is stable
 ;; yields `final-DB`."
