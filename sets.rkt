@@ -2,7 +2,7 @@
 
 (require "fast-mk/mk.rkt" "macros.rkt" "lists.rkt")
 
-(provide permuteo)
+(provide permuteo remove-allo nubo nodupso subseto set==)
 
 (define (permuteo X Y)
   (fresh () (length== X Y) (permute-helper X Y)))
