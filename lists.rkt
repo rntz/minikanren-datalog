@@ -8,9 +8,9 @@
   [('())]
   [((cons x xs)) (list?o xs)])
 
-(define-rules (length=o X Y) (x xs y ys)
+(define-rules (length== X Y) (x xs y ys)
   [('() '())]
-  [((cons x xs) (cons y ys)) (length=o xs ys)])
+  [((cons x xs) (cons y ys)) (length== xs ys)])
 
 ;; "L is a list all of whose members satisfy p."
 ;; `p` is not a logic variable but a unary relation parameter.
